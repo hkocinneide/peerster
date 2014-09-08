@@ -7,6 +7,8 @@
 
 #include "main.hh"
 
+NetSocket sock;
+
 ChatDialog::ChatDialog()
 {
 	setWindowTitle("Peerster");
@@ -22,7 +24,9 @@ ChatDialog::ChatDialog()
 	//
 	// You might change this into a read/write QTextEdit,
 	// so that the user can easily enter multi-line messages.
-	textline = new QLineEdit(this);
+	textline = new TextEntryBox(this);
+  textline->setFocus();
+  textline->setMaximumHeight(40);
 
 	// Lay out the widgets to appear in the main window.
 	// For Qt widget and layout concepts see:
@@ -36,17 +40,51 @@ ChatDialog::ChatDialog()
 	// so that we can send the message entered by the user.
 	connect(textline, SIGNAL(returnPressed()),
 		this, SLOT(gotReturnPressed()));
+  connect(&sock, SIGNAL(readyRead()), this, SLOT(gotReadyRead()));
 }
 
 void ChatDialog::gotReturnPressed()
 {
 	// Initially, just echo the string locally.
-	// Insert some networking code here...
-	qDebug() << "FIX: send message to other peers: " << textline->text();
-	textview->append(textline->text());
+  QString s = textline->toPlainText();
+  QVariant variant = QVariant(s);
+  QVariantMap *map = new QVariantMap();
+  map->insert("ChatText", variant);
+
+  QByteArray data;
+  QDataStream *serializer = new QDataStream(&data, QIODevice::WriteOnly);
+
+  *serializer << *map;
+
+  delete serializer;
+
+  for (int i = sock.myPortMin; i <= sock.myPortMax; i++)
+  {
+    sock.writeDatagram(data, QHostAddress(QHostAddress::LocalHost), i); 
+  }
+
 
 	// Clear the textline to get ready for the next input message.
 	textline->clear();
+}
+
+void ChatDialog::gotReadyRead()
+{
+  while (sock.hasPendingDatagrams())
+  {
+    QByteArray datagram;
+    datagram.resize(sock.pendingDatagramSize());
+    QHostAddress sender;
+    quint16 senderPort;
+
+    sock.readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+
+    QDataStream *stream = new QDataStream(&datagram, QIODevice::ReadOnly);
+    QVariantMap map;
+    *stream >> map;
+
+    textview->append(map.value("ChatText").toString());
+  }
 }
 
 NetSocket::NetSocket()
@@ -60,6 +98,7 @@ NetSocket::NetSocket()
 	// We use the range from 32768 to 49151 for this purpose.
 	myPortMin = 32768 + (getuid() % 4096)*4;
 	myPortMax = myPortMin + 3;
+  currentPort = -1;
 }
 
 bool NetSocket::bind()
@@ -68,6 +107,7 @@ bool NetSocket::bind()
 	for (int p = myPortMin; p <= myPortMax; p++) {
 		if (QUdpSocket::bind(p)) {
 			qDebug() << "bound to UDP port " << p;
+      currentPort = p;
 			return true;
 		}
 	}
@@ -75,6 +115,22 @@ bool NetSocket::bind()
 	qDebug() << "Oops, no ports in my default range " << myPortMin
 		<< "-" << myPortMax << " available";
 	return false;
+}
+
+TextEntryBox::TextEntryBox(QWidget *parent) : QTextEdit(parent)
+{
+}
+
+void TextEntryBox::keyPressEvent(QKeyEvent *e)
+{
+  if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter)
+  {
+    emit returnPressed();
+  }
+  else
+  {
+    QTextEdit::keyPressEvent(e);
+  }
 }
 
 int main(int argc, char **argv)
@@ -87,7 +143,6 @@ int main(int argc, char **argv)
 	dialog.show();
 
 	// Create a UDP network socket
-	NetSocket sock;
 	if (!sock.bind())
 		exit(1);
 
