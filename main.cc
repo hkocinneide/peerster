@@ -7,6 +7,7 @@
 #include <QDebug>
 #include <QHostInfo>
 #include <QTimer>
+#include <QGroupBox>
 
 #include "main.hh"
 
@@ -37,7 +38,16 @@ ChatDialog::ChatDialog()
 	// so that the user can easily enter multi-line messages.
 	textline = new TextEntryBox(this);
   textline->setFocus();
-  textline->setMaximumHeight(40);
+  textline->setMaximumHeight(50);
+
+  QGroupBox *groupBox = new QGroupBox(tr("Add New Connection"));
+
+  newConnection = new TextEntryBox();
+  newConnection->setMaximumHeight(35);
+
+  QVBoxLayout *l = new QVBoxLayout();
+  l->addWidget(newConnection);
+  groupBox->setLayout(l);
 
 	// Lay out the widgets to appear in the main window.
 	// For Qt widget and layout concepts see:
@@ -45,6 +55,7 @@ ChatDialog::ChatDialog()
 	QVBoxLayout *layout = new QVBoxLayout();
 	layout->addWidget(textview);
 	layout->addWidget(textline);
+  layout->addWidget(groupBox);
 	setLayout(layout);
 
   // Initialize our origin name
@@ -66,8 +77,60 @@ ChatDialog::ChatDialog()
 	// so that we can send the message entered by the user.
 	connect(textline, SIGNAL(returnPressed()),
           this, SLOT(gotReturnPressed()));
+  connect(newConnection, SIGNAL(returnPressed()),
+          this, SLOT(gotNewConnection()));
   connect(&sock, SIGNAL(readyRead()),
           this, SLOT(gotReadyRead()));
+}
+
+void ChatDialog::gotNewConnection()
+{
+  QString s = newConnection->toPlainText();
+  newConnection->clear();
+  processConnection(s);
+}
+
+void ChatDialog::processConnection(QString connection)
+{
+  QStringList strlst = connection.split(":");
+  if (strlst.count() != 2)
+    return;
+  QString hostname = strlst[0];
+  QString port = strlst[1];
+  bool ok;
+  int udpport = strlst[1].toInt(&ok);
+  if (!ok || udpport > 65535 || udpport < 0)
+    return;
+  QHostAddress address(hostname);
+  if (QAbstractSocket::IPv4Protocol == address.protocol())
+  {
+    Peer *p = new Peer(address, udpport);
+    QString text = stringifyHostPort(address, udpport);
+    if (!neighbors->contains(text))
+    {
+      qDebug() << "New neighbor" << text;
+      neighbors->insert(text, p);
+    }
+  }
+  else
+  {
+    QHostInfo hostInfo = QHostInfo::fromName(hostname);
+    if (hostInfo.error() == QHostInfo::NoError)
+    {
+      qDebug() << "Whoopee looked up an IP Adress";
+      if (!hostInfo.addresses().isEmpty())
+      {
+        QHostAddress a = hostInfo.addresses().first();
+        QString text = stringifyHostPort(a, udpport);
+        Peer *p = new Peer(a, udpport);
+        if (!neighbors->contains(text))
+        {
+          qDebug() << "New neighbor" << text;
+          neighbors->insert(text, p);
+        }
+      }
+    }
+  }
 }
 
 Peer *ChatDialog::getRandomPeer()
@@ -391,6 +454,13 @@ int main(int argc, char **argv)
     quint16 neighborPort = i;
     Peer *p = new Peer(localHost, neighborPort);
     dialog.neighbors->insert(stringifyHostPort(localHost, neighborPort), p);
+  }
+  
+  // Add neighbors from the command line
+  QStringList args = QCoreApplication::arguments();
+  for(int i = 1; i < args.length(); i++)
+  {
+    dialog.processConnection(args.at(i));
   }
 
 	// Enter the Qt main loop; everything else is event driven

@@ -41,16 +41,19 @@ public:
 	ChatDialog();
   QHash<QString, Peer*> *neighbors;
   QString address;
+  void processConnection(QString);
 
 public slots:
 	void gotReturnPressed();
   void gotReadyRead();
   void responseTimeout();
   void antiEntropy();
+  void gotNewConnection();
 
 private:
 	QTextEdit *textview;
 	TextEntryBox *textline;
+  TextEntryBox *newConnection;
   QString originName;
   qint32 randNum;
   quint32 count;
