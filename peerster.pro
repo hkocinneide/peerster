@@ -7,6 +7,7 @@ TARGET =
 DEPENDPATH += .
 INCLUDEPATH += .
 QT += network
+QMAKE_CXXFLAGS += -std=c++11
 
 # Input
 HEADERS += main.hh

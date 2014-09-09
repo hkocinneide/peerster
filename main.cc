@@ -1,13 +1,24 @@
 
 #include <unistd.h>
+#include <stdlib.h>
 
 #include <QVBoxLayout>
 #include <QApplication>
 #include <QDebug>
+#include <QHostInfo>
+#include <QTimer>
 
 #include "main.hh"
 
 NetSocket sock;
+
+QString stringifyHostPort(QHostAddress ipAddress, quint16 udpPort);
+
+Peer::Peer(QHostAddress ip, quint16 port)
+{
+  ipAddress = ip;
+  udpPortNumber = port;
+}
 
 ChatDialog::ChatDialog()
 {
@@ -36,36 +47,257 @@ ChatDialog::ChatDialog()
 	layout->addWidget(textline);
 	setLayout(layout);
 
+  // Initialize our origin name
+  qsrand((uint)((13*sock.currentPort) + (2*getpid()) + getuid()));
+  randNum = qrand();
+  originName = "Hugh-" + QString::number(randNum);
+  seenMessages = new QHash<QString, QList<QVariantMap*>*>();
+  wantList = new QVariantMap();
+  count = 1;
+
+  // Initialize the timers
+  timer = new QTimer();
+  connect(timer, SIGNAL(timeout()), this, SLOT(responseTimeout()));
+  antiEntropyTimer = new QTimer();
+  connect(antiEntropyTimer, SIGNAL(timeout()), this, SLOT(antiEntropy()));
+  antiEntropyTimer->start(10000);
+
 	// Register a callback on the textline's returnPressed signal
 	// so that we can send the message entered by the user.
 	connect(textline, SIGNAL(returnPressed()),
-		this, SLOT(gotReturnPressed()));
-  connect(&sock, SIGNAL(readyRead()), this, SLOT(gotReadyRead()));
+          this, SLOT(gotReturnPressed()));
+  connect(&sock, SIGNAL(readyRead()),
+          this, SLOT(gotReadyRead()));
+}
+
+Peer *ChatDialog::getRandomPeer()
+{
+  QHash<QString, Peer*>::iterator i;
+  for (i = neighbors->begin(); i != neighbors->end(); i++)
+  {
+    if (qrand() % neighbors->count() == 0)
+    {
+      return i.value();
+    }
+  }
+  i--;
+  return i.value();
+}
+
+bool ChatDialog::receiveMessage(QVariantMap *msg)
+{
+  QString originName = msg->value("Origin").toString();
+  quint32 seqNo = msg->value("SeqNo").toUInt();
+  // Update want vector
+  if (!wantList->contains(originName))
+  {
+    (*wantList)[originName] = 1;
+  }
+  // If the want list is tracking the remote peer, but this isn't the message we want, return
+  if (seqNo != wantList->value(originName).toUInt())
+  {
+    qDebug() << address << ": Ew, I don't want this message, I want" << wantList->value(originName).toUInt();
+    return false;
+  }
+  else
+  {
+    (*wantList)[originName] = QVariant((quint32)seqNo + 1);
+  }
+
+  qDebug() << address << ": I was looking for message #" << seqNo << " and got it!";
+
+  // Update message vector
+  QList<QVariantMap*> *msgVector;
+  if (seenMessages->contains(originName))
+  {
+    msgVector = seenMessages->value(originName);
+  }
+  else
+  {
+    msgVector = new QList<QVariantMap*>();
+    (*seenMessages)[originName] = msgVector;
+  }
+  *msgVector << msg;
+  return true;
+}
+
+QVariantMap *ChatDialog::makeMessage(QString s, QString origin, quint32 c)
+{
+  QVariant varText = QVariant(s);
+  QVariant varOrigin = QVariant(origin);
+  QVariant varSeqNo = QVariant(c);
+  QVariantMap *map = new QVariantMap();
+  map->insert("ChatText", varText);
+  map->insert("Origin", varOrigin);
+  map->insert("SeqNo", varSeqNo);
+  return map;
 }
 
 void ChatDialog::gotReturnPressed()
 {
-	// Initially, just echo the string locally.
   QString s = textline->toPlainText();
-  QVariant variant = QVariant(s);
-  QVariantMap *map = new QVariantMap();
-  map->insert("ChatText", variant);
+  QVariantMap *map = makeMessage(s, originName, count);
 
-  QByteArray data;
-  QDataStream *serializer = new QDataStream(&data, QIODevice::WriteOnly);
-
-  *serializer << *map;
-
-  delete serializer;
-
-  for (int i = sock.myPortMin; i <= sock.myPortMax; i++)
+  if (receiveMessage(map))
   {
-    sock.writeDatagram(data, QHostAddress(QHostAddress::LocalHost), i); 
+    count++;
   }
 
+  rumorMonger(map);
+
+  // Add to window
+  textview->append("Me: " + s);
 
 	// Clear the textline to get ready for the next input message.
 	textline->clear();
+}
+
+void ChatDialog::sendVariantMap(Peer *peer, QVariantMap *msg)
+{
+  // Write to data stream
+  QByteArray data;
+  QDataStream *serializer = new QDataStream(&data, QIODevice::WriteOnly);
+
+  *serializer << *msg;
+  delete serializer;
+
+  sock.writeDatagram(data, peer->ipAddress, peer->udpPortNumber); 
+}
+
+void ChatDialog::rumorMonger(QVariantMap *msg)
+{
+  rumorMonger(msg, getRandomPeer());
+}
+
+void ChatDialog::rumorMonger(QVariantMap *msg, Peer *peer)
+{
+  sendVariantMap(peer, msg);
+  waitMsg = msg;
+  timer->start(2000);
+}
+
+void ChatDialog::antiEntropy()
+{
+  sendResponse(getRandomPeer());
+}
+
+void ChatDialog::responseTimeout()
+{
+  qDebug() << address << ": Oops we timed out!";
+  timer->stop();
+  rumorMonger(waitMsg);
+}
+
+void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint16 senderPort)
+{
+  QString origin = checkAddNeighbor(sender, senderPort);
+
+  QDataStream *stream = new QDataStream(&datagram, QIODevice::ReadOnly);
+  QVariantMap map;
+  *stream >> map;
+  delete stream;
+  QVariantMap *mapRef = new QVariantMap(map);
+
+  if (map.contains("Origin") && map.contains("SeqNo") && map.contains("ChatText"))
+  {
+    bool rcvMsgFlag = receiveMessage(mapRef);
+    sendResponse(origin);
+    if (rcvMsgFlag)
+    {
+      rumorMonger(mapRef);
+      QString text = map.value("Origin").toString() + "(" + map.value("SeqNo").toString() + "): "
+        + map.value("ChatText").toString();
+
+      textview->append(text);
+    }
+  }
+  else if (map.contains("Want"))
+  {
+    qDebug() << address << ": Got want from" << origin;
+    timer->stop();
+    Peer *peer = neighbors->value(origin);
+
+    QVariantMap collection;
+    QVariantMap wantItem = map.value("Want").toMap();
+    QVariantMap::iterator i;
+    for (i = wantList->begin(); i != wantList->end(); i++)
+    {
+      if (wantItem.contains(i.key()))
+      {
+        quint32 theyWant = wantItem.value(i.key()).toUInt();
+        if (theyWant < i.value().toUInt())
+        {
+          qDebug() << address << ":" << origin << "doesn't have the latest gossip!";
+          rumorMonger(seenMessages->value(i.key())->at(theyWant - 1), peer);
+          return;
+        }
+      }
+      else
+      {
+        qDebug() << address << ":" << origin << "didn't even know this guy existed!";
+        rumorMonger(seenMessages->value(i.key())->at(0), peer);
+        return;
+      }
+    }
+    for (i = wantItem.begin(); i != wantItem.end(); i++)
+    {
+      if (wantList->contains(i.key()))
+      {
+        quint32 weWant = wantList->value(i.key()).toUInt();
+        if (weWant < i.value().toUInt())
+        {
+          qDebug() << address << ":" << origin << "is giving us new info!";
+          sendResponse(origin);
+          return;
+        }
+      }
+      else
+      {
+        qDebug() << address << ":" << origin << "knows somebody we dont :(";
+        sendResponse(origin);
+        return;
+      }
+    }
+    // If we're here that means that the two lists are equal
+    qDebug() << address << ":" << origin << "and I have the same info now";
+    if (qrand() % 2 == 0)
+    {
+      qDebug() << address << ":" << "Flipped a coin and it came up heads~";
+      sendResponse(getRandomPeer());
+    }
+    qDebug() << address << ":" << "Coin came up tails D:";
+  }
+}
+
+void ChatDialog::sendResponse(QString origin)
+{
+  sendResponse(neighbors->value(origin));
+}
+
+void ChatDialog::sendResponse(Peer *peer)
+{
+  qDebug() << "Sending want from" << address << "to" << peer->ipAddress.toString() + "?" + QString::number(peer->udpPortNumber);
+  QVariantMap map;
+  map.insert("Want", QVariant(*wantList));
+  sendVariantMap(peer, &map);
+}
+  
+
+QString ChatDialog::checkAddNeighbor(QHostAddress sender, quint16 senderPort)
+{
+  Peer *remotePeer;
+  QString text = stringifyHostPort(sender, senderPort);
+  if (neighbors->contains(text))
+  {
+    remotePeer = neighbors->value(text);
+  }
+  else
+  {
+    qDebug() << address << ": OH! A Challenger appears!";
+    remotePeer = new Peer(sender, senderPort);
+    (*neighbors)[text] = remotePeer;
+  }
+  return text;
 }
 
 void ChatDialog::gotReadyRead()
@@ -78,13 +310,13 @@ void ChatDialog::gotReadyRead()
     quint16 senderPort;
 
     sock.readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
-
-    QDataStream *stream = new QDataStream(&datagram, QIODevice::ReadOnly);
-    QVariantMap map;
-    *stream >> map;
-
-    textview->append(map.value("ChatText").toString());
+    processDatagram(datagram, sender, senderPort);
   }
+}
+
+QString stringifyHostPort(QHostAddress ipAddress, quint16 udpPort)
+{
+  return ipAddress.toString() + "?" + QString::number(udpPort);
 }
 
 NetSocket::NetSocket()
@@ -145,6 +377,21 @@ int main(int argc, char **argv)
 	// Create a UDP network socket
 	if (!sock.bind())
 		exit(1);
+
+  // Letting our app know where it is
+  dialog.address = stringifyHostPort(QHostAddress(QHostAddress::LocalHost), sock.currentPort);
+
+  // Add our neighbors
+  dialog.neighbors = new QHash<QString, Peer*>();
+  QHostAddress localHost = QHostAddress(QHostAddress::LocalHost);
+  for (quint16 i = sock.myPortMin; i <= sock.myPortMax; i++)
+  {
+    if (i == sock.currentPort)
+      continue;
+    quint16 neighborPort = i;
+    Peer *p = new Peer(localHost, neighborPort);
+    dialog.neighbors->insert(stringifyHostPort(localHost, neighborPort), p);
+  }
 
 	// Enter the Qt main loop; everything else is event driven
 	return app.exec();

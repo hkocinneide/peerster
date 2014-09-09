@@ -22,20 +22,54 @@ signals:
   void returnPressed();
 };
 
+class Peer : public QObject
+{
+  Q_OBJECT
+
+public:
+  Peer(QString name);
+  Peer(QHostAddress ip, quint16 port);
+  QHostAddress ipAddress;
+  quint16 udpPortNumber;
+};
+
 class ChatDialog : public QDialog
 {
 	Q_OBJECT
 
 public:
 	ChatDialog();
+  QHash<QString, Peer*> *neighbors;
+  QString address;
 
 public slots:
 	void gotReturnPressed();
   void gotReadyRead();
+  void responseTimeout();
+  void antiEntropy();
 
 private:
 	QTextEdit *textview;
 	TextEntryBox *textline;
+  QString originName;
+  qint32 randNum;
+  quint32 count;
+  QHash<QString, QList<QVariantMap*>*> *seenMessages;
+  QVariantMap *wantList;
+  QTimer *timer;
+  QTimer *antiEntropyTimer;
+  QVariantMap *waitMsg;
+
+  Peer *getRandomPeer();
+  void processDatagram(QByteArray datagram, QHostAddress sender, quint16 senderPort);
+  QString checkAddNeighbor(QHostAddress,quint16);
+  void rumorMonger(QVariantMap*);
+  void rumorMonger(QVariantMap*, Peer*);
+  bool receiveMessage(QVariantMap*);
+  void sendResponse(QString);
+  void sendResponse(Peer*);
+  void sendVariantMap(Peer*, QVariantMap*);
+  QVariantMap *makeMessage(QString text, QString origin, quint32 count);
 };
 
 class NetSocket : public QUdpSocket
@@ -50,16 +84,5 @@ public:
 	// Bind this socket to a Peerster-specific default port.
 	bool bind();
 };
-
-class Peer
-{
-  Q_OBJECT
-
-public:
-  QString dnsHostName;
-  QHostAddress ipAddress;
-  quint16 udpPortNumber;
-
-}
 
 #endif // PEERSTER_MAIN_HH
