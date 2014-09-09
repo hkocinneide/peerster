@@ -31,6 +31,11 @@ public:
   Peer(QHostAddress ip, quint16 port);
   QHostAddress ipAddress;
   quint16 udpPortNumber;
+  QTimer *timer;
+  QVariantMap *waitMsg;
+
+public slots:
+  void responseTimeout();
 };
 
 class ChatDialog : public QDialog
@@ -42,11 +47,11 @@ public:
   QHash<QString, Peer*> *neighbors;
   QString address;
   void processConnection(QString);
+  void rumorMonger(QVariantMap*);
 
 public slots:
 	void gotReturnPressed();
   void gotReadyRead();
-  void responseTimeout();
   void antiEntropy();
   void gotNewConnection();
 
@@ -59,14 +64,11 @@ private:
   quint32 count;
   QHash<QString, QList<QVariantMap*>*> *seenMessages;
   QVariantMap *wantList;
-  QTimer *timer;
   QTimer *antiEntropyTimer;
-  QVariantMap *waitMsg;
 
   Peer *getRandomPeer();
   void processDatagram(QByteArray datagram, QHostAddress sender, quint16 senderPort);
   QString checkAddNeighbor(QHostAddress,quint16);
-  void rumorMonger(QVariantMap*);
   void rumorMonger(QVariantMap*, Peer*);
   bool receiveMessage(QVariantMap*);
   void sendResponse(QString);

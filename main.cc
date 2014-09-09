@@ -12,6 +12,7 @@
 #include "main.hh"
 
 NetSocket sock;
+ChatDialog *dialog;
 
 QString stringifyHostPort(QHostAddress ipAddress, quint16 udpPort);
 
@@ -19,6 +20,8 @@ Peer::Peer(QHostAddress ip, quint16 port)
 {
   ipAddress = ip;
   udpPortNumber = port;
+  timer = new QTimer();
+  connect(timer, SIGNAL(timeout()), this, SLOT(responseTimeout()));
 }
 
 ChatDialog::ChatDialog()
@@ -66,9 +69,7 @@ ChatDialog::ChatDialog()
   wantList = new QVariantMap();
   count = 1;
 
-  // Initialize the timers
-  timer = new QTimer();
-  connect(timer, SIGNAL(timeout()), this, SLOT(responseTimeout()));
+  // Initialize the timer
   antiEntropyTimer = new QTimer();
   connect(antiEntropyTimer, SIGNAL(timeout()), this, SLOT(antiEntropy()));
   antiEntropyTimer->start(10000);
@@ -235,8 +236,8 @@ void ChatDialog::rumorMonger(QVariantMap *msg)
 void ChatDialog::rumorMonger(QVariantMap *msg, Peer *peer)
 {
   sendVariantMap(peer, msg);
-  waitMsg = msg;
-  timer->start(2000);
+  peer->timer->start(2000);
+  peer->waitMsg = msg;
 }
 
 void ChatDialog::antiEntropy()
@@ -244,11 +245,11 @@ void ChatDialog::antiEntropy()
   sendResponse(getRandomPeer());
 }
 
-void ChatDialog::responseTimeout()
+void Peer::responseTimeout()
 {
-  qDebug() << address << ": Oops we timed out!";
+  qDebug() << dialog->address << ": Oops we timed out!";
   timer->stop();
-  rumorMonger(waitMsg);
+  dialog->rumorMonger(waitMsg);
 }
 
 void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint16 senderPort)
@@ -277,8 +278,8 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
   else if (map.contains("Want"))
   {
     qDebug() << address << ": Got want from" << origin;
-    timer->stop();
     Peer *peer = neighbors->value(origin);
+    peer->timer->stop();
 
     QVariantMap collection;
     QVariantMap wantItem = map.value("Want").toMap();
@@ -434,18 +435,18 @@ int main(int argc, char **argv)
 	QApplication app(argc,argv);
 
 	// Create an initial chat dialog window
-	ChatDialog dialog;
-	dialog.show();
+  dialog = new ChatDialog();
+	dialog->show();
 
 	// Create a UDP network socket
 	if (!sock.bind())
 		exit(1);
 
   // Letting our app know where it is
-  dialog.address = stringifyHostPort(QHostAddress(QHostAddress::LocalHost), sock.currentPort);
+  dialog->address = stringifyHostPort(QHostAddress(QHostAddress::LocalHost), sock.currentPort);
 
   // Add our neighbors
-  dialog.neighbors = new QHash<QString, Peer*>();
+  dialog->neighbors = new QHash<QString, Peer*>();
   QHostAddress localHost = QHostAddress(QHostAddress::LocalHost);
   for (quint16 i = sock.myPortMin; i <= sock.myPortMax; i++)
   {
@@ -453,14 +454,14 @@ int main(int argc, char **argv)
       continue;
     quint16 neighborPort = i;
     Peer *p = new Peer(localHost, neighborPort);
-    dialog.neighbors->insert(stringifyHostPort(localHost, neighborPort), p);
+    dialog->neighbors->insert(stringifyHostPort(localHost, neighborPort), p);
   }
   
   // Add neighbors from the command line
   QStringList args = QCoreApplication::arguments();
   for(int i = 1; i < args.length(); i++)
   {
-    dialog.processConnection(args.at(i));
+    dialog->processConnection(args.at(i));
   }
 
 	// Enter the Qt main loop; everything else is event driven
