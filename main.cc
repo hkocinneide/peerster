@@ -152,6 +152,11 @@ bool ChatDialog::receiveMessage(QVariantMap *msg)
 {
   QString originName = msg->value("Origin").toString();
   quint32 seqNo = msg->value("SeqNo").toUInt();
+  if (seqNo == 0)
+  {
+    qDebug() << "ERROR We shouldn't be getting a SeqNo of 0 ERROR";
+    return false;
+  }
   // Update want vector
   if (!wantList->contains(originName))
   {
