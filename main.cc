@@ -1,28 +1,14 @@
-
 #include <unistd.h>
 #include <stdlib.h>
 
-#include <QVBoxLayout>
-#include <QApplication>
-#include <QDebug>
-#include <QHostInfo>
-#include <QTimer>
-#include <QGroupBox>
-
 #include "main.hh"
+#include "peer.hh"
+#include "chatdialog.hh"
+#include "netsocket.hh"
+#include "textentrybox.hh"
 
 NetSocket sock;
-ChatDialog *dialog;
-
 QString stringifyHostPort(QHostAddress ipAddress, quint16 udpPort);
-
-Peer::Peer(QHostAddress ip, quint16 port)
-{
-  ipAddress = ip;
-  udpPortNumber = port;
-  timer = new QTimer();
-  connect(timer, SIGNAL(timeout()), this, SLOT(responseTimeout()));
-}
 
 ChatDialog::ChatDialog()
 {
@@ -250,13 +236,6 @@ void ChatDialog::antiEntropy()
   sendResponse(getRandomPeer());
 }
 
-void Peer::responseTimeout()
-{
-  qDebug() << dialog->address << ": Oops we timed out!";
-  timer->stop();
-  dialog->rumorMonger(waitMsg);
-}
-
 void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint16 senderPort)
 {
   QString origin = checkAddNeighbor(sender, senderPort);
@@ -434,24 +413,26 @@ void TextEntryBox::keyPressEvent(QKeyEvent *e)
   }
 }
 
+ChatDialog *ChatDialog::dialog = NULL;
+
 int main(int argc, char **argv)
 {
 	// Initialize Qt toolkit
 	QApplication app(argc,argv);
 
 	// Create an initial chat dialog window
-  dialog = new ChatDialog();
-	dialog->show();
+  ChatDialog::dialog = new ChatDialog();
+  ChatDialog::dialog->show();
 
 	// Create a UDP network socket
 	if (!sock.bind())
 		exit(1);
 
   // Letting our app know where it is
-  dialog->address = stringifyHostPort(QHostAddress(QHostAddress::LocalHost), sock.currentPort);
+  ChatDialog::dialog->address = stringifyHostPort(QHostAddress(QHostAddress::LocalHost), sock.currentPort);
 
   // Add our neighbors
-  dialog->neighbors = new QHash<QString, Peer*>();
+  ChatDialog::dialog->neighbors = new QHash<QString, Peer*>();
   QHostAddress localHost = QHostAddress(QHostAddress::LocalHost);
   for (quint16 i = sock.myPortMin; i <= sock.myPortMax; i++)
   {
@@ -459,14 +440,14 @@ int main(int argc, char **argv)
       continue;
     quint16 neighborPort = i;
     Peer *p = new Peer(localHost, neighborPort);
-    dialog->neighbors->insert(stringifyHostPort(localHost, neighborPort), p);
+    ChatDialog::dialog->neighbors->insert(stringifyHostPort(localHost, neighborPort), p);
   }
   
   // Add neighbors from the command line
   QStringList args = QCoreApplication::arguments();
   for(int i = 1; i < args.length(); i++)
   {
-    dialog->processConnection(args.at(i));
+    ChatDialog::dialog->processConnection(args.at(i));
   }
 
 	// Enter the Qt main loop; everything else is event driven
