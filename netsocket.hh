@@ -1,4 +1,4 @@
-#include "main.hh"
+#include "qinclude.hh"
 
 class NetSocket : public QUdpSocket
 {

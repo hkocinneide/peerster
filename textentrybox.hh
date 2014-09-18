@@ -1,4 +1,4 @@
-#include "main.hh"
+#include "qinclude.hh"
 
 class TextEntryBox : public QTextEdit
 {
