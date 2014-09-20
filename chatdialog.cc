@@ -14,7 +14,7 @@ ChatDialog::ChatDialog()
   privatechat = new QDialog(this);
   privatechat->hide();
   privatechat->setWindowTitle("Private Chat");
-  privateChatTable = new QHash<QString, PrivateDialogLayout*>();
+  privateChatTable = new QHash<QString, QDialog*>();
 
 	// Read-only text box where we display messages from everyone.
 	// This widget expands both horizontally and vertically.
@@ -212,10 +212,10 @@ void ChatDialog::peerActivated(QListWidgetItem *item)
 {
   if (privateChatTable->contains(item->text()))
   {
-    QGridLayout *l = privateChatTable->value(item->text());
-    privatechat->setLayout(l);
-    privatechat->setWindowTitle("Private Chat with " + item->text());
-    privatechat->show();
+    QDialog *chat = privateChatTable->value(item->text());
+    chat->show();
+    chat->raise();
+    chat->activateWindow();
   }
   else
   {
@@ -289,8 +289,11 @@ void ChatDialog::updateRoutingTable(QString origin, QHostAddress sender, quint16
     routingTable->insert(origin, entry);
 
     // Make a layout for the new potential private messages
+    QDialog *pcdialog = new QDialog();
     PrivateDialogLayout *pclayout = new PrivateDialogLayout();
-    privateChatTable->insert(origin, pclayout);
+    pcdialog->setLayout(pclayout);
+    pcdialog->setWindowTitle("Chat with " + origin);
+    privateChatTable->insert(origin, pcdialog);
 
     new QListWidgetItem(origin, peerlist);
     peerlist->repaint();

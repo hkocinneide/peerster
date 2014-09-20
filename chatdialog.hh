@@ -39,7 +39,8 @@ private:
   quint32 count;
   QHash<QString, QList<QVariantMap*>*> *seenMessages;
   QHash<QString, QPair<QHostAddress, quint16>*> *routingTable;
-  QHash<QString, PrivateDialogLayout*> *privateChatTable;
+  QHash<QString, QDialog*> *privateChatTable;
+  QDialog *activeDialog;
   QVariantMap *wantList;
   QTimer *antiEntropyTimer;
   QTimer *routingTimer;
