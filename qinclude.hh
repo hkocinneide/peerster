@@ -10,5 +10,6 @@
 #include <QHostInfo>
 #include <QTimer>
 #include <QGroupBox>
+#include <QListWidget>
 
 QString stringifyHostPort(QHostAddress, quint16);

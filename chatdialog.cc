@@ -33,13 +33,16 @@ ChatDialog::ChatDialog()
   l->addWidget(newConnection);
   groupBox->setLayout(l);
 
+  peerlist = new QListWidget(this);
+
 	// Lay out the widgets to appear in the main window.
 	// For Qt widget and layout concepts see:
 	// http://doc.qt.nokia.com/4.7-snapshot/widgets-and-layouts.html
-	QVBoxLayout *layout = new QVBoxLayout();
-	layout->addWidget(textview);
-	layout->addWidget(textline);
-  layout->addWidget(groupBox);
+	QGridLayout *layout = new QGridLayout();
+	layout->addWidget(textview, 0, 0);
+	layout->addWidget(textline, 1, 0);
+  layout->addWidget(groupBox, 2, 0);
+  layout->addWidget(peerlist, 0, 1, 3, 1);
 	setLayout(layout);
 
   // Initialize our origin name
@@ -154,7 +157,8 @@ bool ChatDialog::receiveMessage(QVariantMap *msg)
   // If the want list is tracking the remote peer, but this isn't the message we want, return
   if (seqNo != wantList->value(originName).toUInt())
   {
-    qDebug() << address << ": Ew, I don't want this message, I want" << wantList->value(originName).toUInt();
+    qDebug() << address << ": Ew, I don't want this message, I want"
+             << wantList->value(originName).toUInt();
     return false;
   }
   else
@@ -254,9 +258,13 @@ void ChatDialog::antiEntropy()
 
 void ChatDialog::updateRoutingTable(QString origin, QHostAddress sender, quint16 senderPort)
 {
-  qDebug() << "Adding new entry to the routing table" << sender << senderPort;
-  QPair<QHostAddress, quint16> *entry = new QPair<QHostAddress, quint16>(sender, senderPort);
-  routingTable->insert(origin, entry);
+  if (!routingTable->contains(origin)) {
+    qDebug() << "Adding new entry to the routing table" << sender << senderPort;
+    QPair<QHostAddress, quint16> *entry = new QPair<QHostAddress, quint16>(sender, senderPort);
+    routingTable->insert(origin, entry);
+    new QListWidgetItem(origin, peerlist);
+    peerlist->repaint();
+  }
 }
 
 
@@ -280,8 +288,9 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
       rumorMonger(mapRef);
       if (map.contains("ChatText"))
       {
-        QString text = map.value("Origin").toString() + "(" + map.value("SeqNo").toString() + "): "
-          + map.value("ChatText").toString();
+        QString text = map.value("Origin").toString() + "(" +
+                       map.value("SeqNo").toString() + "): " +
+                       map.value("ChatText").toString();
         textview->append(text);
       }
     }
@@ -337,10 +346,8 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
     qDebug() << address << ":" << origin << "and I have the same info now";
     if (qrand() % 2 == 0)
     {
-      qDebug() << address << ":" << "Flipped a coin and it came up heads~";
       sendResponse(getRandomPeer());
     }
-    qDebug() << address << ":" << "Coin came up tails D:";
   }
 }
 
@@ -351,7 +358,8 @@ void ChatDialog::sendResponse(QString origin)
 
 void ChatDialog::sendResponse(Peer *peer)
 {
-  qDebug() << "Sending want from" << address << "to" << peer->ipAddress.toString() + "?" + QString::number(peer->udpPortNumber);
+  qDebug() << "Sending want from" << address << "to"
+           << stringifyHostPort(peer->ipAddress, peer->udpPortNumber);
   QVariantMap map;
   map.insert("Want", QVariant(*wantList));
   sendVariantMap(peer, &map);

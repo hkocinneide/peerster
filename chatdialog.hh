@@ -28,6 +28,7 @@ public slots:
 
 private:
 	QTextEdit *textview;
+  QListWidget *peerlist;
 	TextEntryBox *textline;
   TextEntryBox *newConnection;
   QString originName;
