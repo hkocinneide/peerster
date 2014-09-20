@@ -4,6 +4,7 @@
 #include "peer.hh"
 #include "textentrybox.hh"
 #include "netsocket.hh"
+#include "privatedialoglayout.hh"
 
 ChatDialog::ChatDialog()
 {
@@ -13,12 +14,7 @@ ChatDialog::ChatDialog()
   privatechat = new QDialog(this);
   privatechat->hide();
   privatechat->setWindowTitle("Private Chat");
-  QTextEdit *pctext = new QTextEdit(this);
-  TextEntryBox *pcentrybox = new TextEntryBox(this);
-  pcentrybox->setMaximumHeight(50);
-  QGridLayout *pclayout = new QGridLayout(privatechat);
-  pclayout->addWidget(pctext, 0, 0);
-  pclayout->addWidget(pcentrybox, 1, 0);
+  privateChatTable = new QHash<QString, PrivateDialogLayout*>();
 
 	// Read-only text box where we display messages from everyone.
 	// This widget expands both horizontally and vertically.
@@ -214,7 +210,17 @@ QVariantMap *ChatDialog::makeMessage(QString s, QString origin, quint32 c)
 
 void ChatDialog::peerActivated(QListWidgetItem *item)
 {
-  privatechat->show();
+  if (privateChatTable->contains(item->text()))
+  {
+    QGridLayout *l = privateChatTable->value(item->text());
+    privatechat->setLayout(l);
+    privatechat->setWindowTitle("Private Chat with " + item->text());
+    privatechat->show();
+  }
+  else
+  {
+    qDebug() << "ERROR switching layouts ERROR";
+  }
 }
 
 void ChatDialog::gotReturnPressed()
@@ -281,6 +287,11 @@ void ChatDialog::updateRoutingTable(QString origin, QHostAddress sender, quint16
     qDebug() << "Adding new entry to the routing table" << sender << senderPort;
     QPair<QHostAddress, quint16> *entry = new QPair<QHostAddress, quint16>(sender, senderPort);
     routingTable->insert(origin, entry);
+
+    // Make a layout for the new potential private messages
+    PrivateDialogLayout *pclayout = new PrivateDialogLayout();
+    privateChatTable->insert(origin, pclayout);
+
     new QListWidgetItem(origin, peerlist);
     peerlist->repaint();
   }
@@ -417,4 +428,3 @@ void ChatDialog::gotReadyRead()
 }
 
 ChatDialog *ChatDialog::dialog = NULL;
-

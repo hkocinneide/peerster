@@ -1,5 +1,6 @@
 #include "qinclude.hh"
 
+class PrivateDialogLayout;
 class Peer;
 class TextEntryBox;
 class NetSocket;
@@ -38,6 +39,7 @@ private:
   quint32 count;
   QHash<QString, QList<QVariantMap*>*> *seenMessages;
   QHash<QString, QPair<QHostAddress, quint16>*> *routingTable;
+  QHash<QString, PrivateDialogLayout*> *privateChatTable;
   QVariantMap *wantList;
   QTimer *antiEntropyTimer;
   QTimer *routingTimer;
@@ -52,5 +54,6 @@ private:
   void sendVariantMap(Peer*, QVariantMap*);
   QVariantMap *makeMessage(QString text, QString origin, quint32 count);
   void updateRoutingTable(QString origin, QHostAddress sender, quint16 senderPort);
+  QGridLayout *makeNewLayout();
 };
 
