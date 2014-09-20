@@ -9,6 +9,17 @@ ChatDialog::ChatDialog()
 {
 	setWindowTitle("Peerster");
 
+  // Set the private chat window, hidden at first
+  privatechat = new QDialog(this);
+  privatechat->hide();
+  privatechat->setWindowTitle("Private Chat");
+  QTextEdit *pctext = new QTextEdit(this);
+  TextEntryBox *pcentrybox = new TextEntryBox(this);
+  pcentrybox->setMaximumHeight(50);
+  QGridLayout *pclayout = new QGridLayout(privatechat);
+  pclayout->addWidget(pctext, 0, 0);
+  pclayout->addWidget(pcentrybox, 1, 0);
+
 	// Read-only text box where we display messages from everyone.
 	// This widget expands both horizontally and vertically.
 	textview = new QTextEdit(this);
@@ -24,6 +35,7 @@ ChatDialog::ChatDialog()
   textline->setFocus();
   textline->setMaximumHeight(50);
 
+  // New connection box
   QGroupBox *groupBox = new QGroupBox(tr("Add New Connection"));
 
   newConnection = new TextEntryBox();
@@ -74,6 +86,8 @@ ChatDialog::ChatDialog()
           this, SLOT(gotNewConnection()));
   connect(&sock, SIGNAL(readyRead()),
           this, SLOT(gotReadyRead()));
+  connect(peerlist, SIGNAL(itemActivated(QListWidgetItem *)),
+          this, SLOT(peerActivated(QListWidgetItem *)));
 }
 
 void ChatDialog::gotNewConnection()
@@ -196,6 +210,11 @@ QVariantMap *ChatDialog::makeMessage(QString s, QString origin, quint32 c)
   map->insert("Origin", varOrigin);
   map->insert("SeqNo", varSeqNo);
   return map;
+}
+
+void ChatDialog::peerActivated(QListWidgetItem *item)
+{
+  privatechat->show();
 }
 
 void ChatDialog::gotReturnPressed()

@@ -25,10 +25,12 @@ public slots:
   void antiEntropy();
   void routeRumor();
   void gotNewConnection();
+  void peerActivated(QListWidgetItem *item);
 
 private:
 	QTextEdit *textview;
   QListWidget *peerlist;
+  QDialog *privatechat;
 	TextEntryBox *textline;
   TextEntryBox *newConnection;
   QString originName;
