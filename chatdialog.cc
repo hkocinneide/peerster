@@ -4,7 +4,7 @@
 #include "peer.hh"
 #include "textentrybox.hh"
 #include "netsocket.hh"
-#include "privatedialoglayout.hh"
+#include "privatedialog.hh"
 
 ChatDialog::ChatDialog()
 {

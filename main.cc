@@ -5,7 +5,7 @@
 #include "peer.hh"
 #include "chatdialog.hh"
 #include "textentrybox.hh"
-#include "privatedialoglayout.hh"
+#include "privatedialog.hh"
 
 QString stringifyHostPort(QHostAddress ipAddress, quint16 udpPort)
 {
