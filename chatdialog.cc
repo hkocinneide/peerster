@@ -14,7 +14,7 @@ ChatDialog::ChatDialog()
   privatechat = new QDialog(this);
   privatechat->hide();
   privatechat->setWindowTitle("Private Chat");
-  privateChatTable = new QHash<QString, QDialog*>();
+  privateChatTable = new QHash<QString, PrivateDialog*>();
 
 	// Read-only text box where we display messages from everyone.
 	// This widget expands both horizontally and vertically.
@@ -167,8 +167,8 @@ bool ChatDialog::receiveMessage(QVariantMap *msg)
   // If the want list is tracking the remote peer, but this isn't the message we want, return
   if (seqNo != wantList->value(originName).toUInt())
   {
-    qDebug() << address << ": Ew, I don't want this message, I want"
-             << wantList->value(originName).toUInt();
+    // qDebug() << address << ": Ew, I don't want this message, I want"
+    //          << wantList->value(originName).toUInt();
     return false;
   }
   else
@@ -176,7 +176,7 @@ bool ChatDialog::receiveMessage(QVariantMap *msg)
     (*wantList)[originName] = QVariant((quint32)seqNo + 1);
   }
 
-  qDebug() << address << ": I was looking for message #" << seqNo << " and got it!";
+  // qDebug() << address << ": I was looking for message #" << seqNo << " and got it!";
 
   // Update message vector
   QList<QVariantMap*> *msgVector;
@@ -212,7 +212,7 @@ void ChatDialog::peerActivated(QListWidgetItem *item)
 {
   if (privateChatTable->contains(item->text()))
   {
-    QDialog *chat = privateChatTable->value(item->text());
+    PrivateDialog *chat = privateChatTable->value(item->text());
     chat->show();
     chat->raise();
     chat->activateWindow();
@@ -242,7 +242,7 @@ void ChatDialog::gotReturnPressed()
 	textline->clear();
 }
 
-void ChatDialog::sendVariantMap(Peer *peer, QVariantMap *msg)
+void ChatDialog::sendVariantMap(QHostAddress ipaddress, quint16 port, QVariantMap *msg)
 {
   // Write to data stream
   QByteArray data;
@@ -251,7 +251,12 @@ void ChatDialog::sendVariantMap(Peer *peer, QVariantMap *msg)
   *serializer << *msg;
   delete serializer;
 
-  sock.writeDatagram(data, peer->ipAddress, peer->udpPortNumber); 
+  sock.writeDatagram(data, ipaddress, port); 
+}
+
+void ChatDialog::sendVariantMap(Peer *peer, QVariantMap *msg)
+{
+  sendVariantMap(peer->ipAddress, peer->udpPortNumber, msg);
 }
 
 void ChatDialog::rumorMonger(QVariantMap *msg)
@@ -289,10 +294,7 @@ void ChatDialog::updateRoutingTable(QString origin, QHostAddress sender, quint16
     routingTable->insert(origin, entry);
 
     // Make a layout for the new potential private messages
-    QDialog *pcdialog = new QDialog();
-    PrivateDialogLayout *pclayout = new PrivateDialogLayout();
-    pcdialog->setLayout(pclayout);
-    pcdialog->setWindowTitle("Chat with " + origin);
+    PrivateDialog *pcdialog = new PrivateDialog(origin);
     privateChatTable->insert(origin, pcdialog);
 
     new QListWidgetItem(origin, peerlist);
@@ -330,7 +332,7 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
   }
   else if (map.contains("Want"))
   {
-    qDebug() << address << ": Got want from" << origin;
+    // qDebug() << address << ": Got want from" << origin;
     Peer *peer = neighbors->value(origin);
     peer->timer->stop();
 
@@ -344,14 +346,14 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
         quint32 theyWant = wantItem.value(i.key()).toUInt();
         if (theyWant < i.value().toUInt())
         {
-          qDebug() << address << ":" << origin << "doesn't have the latest gossip!";
+          // qDebug() << address << ":" << origin << "doesn't have the latest gossip!";
           rumorMonger(seenMessages->value(i.key())->at(theyWant - 1), peer);
           return;
         }
       }
       else
       {
-        qDebug() << address << ":" << origin << "didn't even know this guy existed!";
+        // qDebug() << address << ":" << origin << "didn't even know this guy existed!";
         rumorMonger(seenMessages->value(i.key())->at(0), peer);
         return;
       }
@@ -363,23 +365,70 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
         quint32 weWant = wantList->value(i.key()).toUInt();
         if (weWant < i.value().toUInt())
         {
-          qDebug() << address << ":" << origin << "is giving us new info!";
+          // qDebug() << address << ":" << origin << "is giving us new info!";
           sendResponse(origin);
           return;
         }
       }
       else
       {
-        qDebug() << address << ":" << origin << "knows somebody we dont :(";
+        // qDebug() << address << ":" << origin << "knows somebody we dont :(";
         sendResponse(origin);
         return;
       }
     }
     // If we're here that means that the two lists are equal
-    qDebug() << address << ":" << origin << "and I have the same info now";
+    // qDebug() << address << ":" << origin << "and I have the same info now";
     if (qrand() % 2 == 0)
     {
       sendResponse(getRandomPeer());
+    }
+  }
+  else if (map.contains("Dest") && map.contains("Origin")
+        && map.contains("ChatText") && map.contains("HopLimit"))
+  {
+    qDebug() << address << ": Got a private message";
+    QString dest = map.value("Dest").toString();
+    QString org  = map.value("Origin").toString();
+    // If we are the intended recipient
+    if (originName == dest)
+    {
+      if (privateChatTable->contains(org))
+      {
+        PrivateDialog *pcdialog = privateChatTable->value(org);
+        pcdialog->showMessage(dest + ":" + map.value("ChatText").toString());
+      }
+      else
+      {
+        qDebug() << address << ": ERROR??? DIDN'T FIND IN PRIVATE CHAT TABLE";
+      }
+    }
+    // We are not the intended recipient
+    else
+    {
+      quint32 hoplimit = map.value("HopLimit").toUInt();
+      hoplimit--;
+      // If HopLimit isn't zero, forward the message
+      if (hoplimit != 0)
+      {
+        qDebug() << address << ": Attempting to forward the message";
+        QString dest = map.value("Dest").toString();
+        map["HopLimit"] = hoplimit;
+        if (routingTable->contains(dest))
+        {
+          qDebug() << address << ": Found this guy in our routing table";
+          QPair<QHostAddress, quint16> *destination = routingTable->value(dest);
+          sendVariantMap(destination->first, destination->second, &map);
+        }
+        else
+        {
+          qDebug() << address << ": Couldn't find this guy in our routing table";
+        }
+      }
+      else
+      {
+        qDebug() << address << ": Hoplimit is 0, throwing out message";
+      }
     }
   }
 }
@@ -391,8 +440,8 @@ void ChatDialog::sendResponse(QString origin)
 
 void ChatDialog::sendResponse(Peer *peer)
 {
-  qDebug() << "Sending want from" << address << "to"
-           << stringifyHostPort(peer->ipAddress, peer->udpPortNumber);
+  // qDebug() << "Sending want from" << address << "to"
+  //          << stringifyHostPort(peer->ipAddress, peer->udpPortNumber);
   QVariantMap map;
   map.insert("Want", QVariant(*wantList));
   sendVariantMap(peer, &map);
@@ -409,7 +458,7 @@ QString ChatDialog::checkAddNeighbor(QHostAddress sender, quint16 senderPort)
   }
   else
   {
-    qDebug() << address << ": OH! A Challenger appears!";
+    // qDebug() << address << ": OH! A Challenger appears!";
     remotePeer = new Peer(sender, senderPort);
     (*neighbors)[text] = remotePeer;
   }

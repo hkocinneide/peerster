@@ -1,6 +1,6 @@
 #include "qinclude.hh"
 
-class PrivateDialogLayout;
+class PrivateDialog;
 class Peer;
 class TextEntryBox;
 class NetSocket;
@@ -15,10 +15,15 @@ public:
 	ChatDialog();
   QHash<QString, Peer*> *neighbors;
   QString address;
+  QHash<QString, PrivateDialog*> *privateChatTable;
+  QHash<QString, QPair<QHostAddress, quint16>*> *routingTable;
+  QString originName;
 
   static ChatDialog *dialog;
   void processConnection(QString);
   void rumorMonger(QVariantMap*);
+  void sendVariantMap(QHostAddress, quint16, QVariantMap *);
+  void sendVariantMap(Peer*, QVariantMap*);
 
 public slots:
 	void gotReturnPressed();
@@ -34,12 +39,9 @@ private:
   QDialog *privatechat;
 	TextEntryBox *textline;
   TextEntryBox *newConnection;
-  QString originName;
   qint32 randNum;
   quint32 count;
   QHash<QString, QList<QVariantMap*>*> *seenMessages;
-  QHash<QString, QPair<QHostAddress, quint16>*> *routingTable;
-  QHash<QString, QDialog*> *privateChatTable;
   QDialog *activeDialog;
   QVariantMap *wantList;
   QTimer *antiEntropyTimer;
@@ -52,7 +54,6 @@ private:
   bool receiveMessage(QVariantMap*);
   void sendResponse(QString);
   void sendResponse(Peer*);
-  void sendVariantMap(Peer*, QVariantMap*);
   QVariantMap *makeMessage(QString text, QString origin, quint32 count);
   void updateRoutingTable(QString origin, QHostAddress sender, quint16 senderPort);
   QGridLayout *makeNewLayout();

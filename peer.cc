@@ -11,7 +11,7 @@ Peer::Peer(QHostAddress ip, quint16 port)
 
 void Peer::responseTimeout()
 {
-  qDebug() << ChatDialog::dialog->address << ": Oops we timed out!";
+  // qDebug() << ChatDialog::dialog->address << ": Oops we timed out!";
   timer->stop();
   ChatDialog::dialog->rumorMonger(waitMsg);
 }
