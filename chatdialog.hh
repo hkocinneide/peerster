@@ -18,6 +18,7 @@ public:
   QHash<QString, PrivateDialog*> *privateChatTable;
   QHash<QString, QPair<QHostAddress, quint16>*> *routingTable;
   QString originName;
+  bool noforward;
 
   static ChatDialog *dialog;
   void processConnection(QString);

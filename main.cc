@@ -39,12 +39,22 @@ int main(int argc, char **argv)
     Peer *p = new Peer(localHost, neighborPort);
     ChatDialog::dialog->neighbors->insert(stringifyHostPort(localHost, neighborPort), p);
   }
+
+  // Set noforward
+  ChatDialog::dialog->noforward = false;
   
   // Add neighbors from the command line
   QStringList args = QCoreApplication::arguments();
   for(int i = 1; i < args.length(); i++)
   {
-    ChatDialog::dialog->processConnection(args.at(i));
+    if (args.at(i) == "-noforward")
+    {
+      ChatDialog::dialog->noforward = true;
+    }
+    else // We have a connection
+    {
+      ChatDialog::dialog->processConnection(args.at(i));
+    }
   }
 
   // Have the new ChatDialog send a "Hey! I'm here!" message

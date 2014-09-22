@@ -7,7 +7,7 @@ TARGET =
 DEPENDPATH += .
 INCLUDEPATH += .
 QT += network
-QMAKE_CXXFLAGS += -std=c++11
+QMAKE_CXXFLAGS +=
 
 # Input
 HEADERS += main.hh peer.hh qinclude.hh chatdialog.hh netsocket.hh textentrybox.hh privatedialog.hh
