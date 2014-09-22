@@ -366,7 +366,7 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
         }
         else
         {
-          // qDebug() << address << ":" << origin << "didn't even know this guy existed!";
+          qDebug() << address << ":" << origin << "didn't even know this guy existed!";
           if (seenMessages->contains(i.key()))
           {
             rumorMonger(seenMessages->value(i.key())->at(0), peer);
