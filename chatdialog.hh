@@ -16,7 +16,7 @@ public:
   QHash<QString, Peer*> *neighbors;
   QString address;
   QHash<QString, PrivateDialog*> *privateChatTable;
-  QHash<QString, QPair<QHostAddress, quint16>*> *routingTable;
+  QHash<QString, QPair<QPair<QHostAddress, quint16>*,quint32>*> *routingTable;
   QString originName;
   bool noforward;
 
@@ -52,11 +52,12 @@ private:
   void processDatagram(QByteArray datagram, QHostAddress sender, quint16 senderPort);
   QString checkAddNeighbor(QHostAddress,quint16);
   void rumorMonger(QVariantMap*, Peer*);
+  void rumorMongerAllPeers(QVariantMap*);
   bool receiveMessage(QVariantMap*);
   void sendResponse(QString);
   void sendResponse(Peer*);
   QVariantMap *makeMessage(QString text, QString origin, quint32 count);
-  void updateRoutingTable(QString origin, QHostAddress sender, quint16 senderPort);
+  void updateRoutingTable(QString origin, QHostAddress sender, quint16 senderPort, quint32 seqNo, bool direct);
   QGridLayout *makeNewLayout();
 };
 

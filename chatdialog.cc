@@ -62,7 +62,7 @@ ChatDialog::ChatDialog()
   count = 1;
 
   // Initialize our routing table
-  routingTable = new QHash<QString, QPair<QHostAddress, quint16>*>();
+  routingTable = new QHash<QString, QPair<QPair<QHostAddress, quint16>*, quint32>*>();
 
   // Initialize the timer
   antiEntropyTimer = new QTimer();
@@ -259,6 +259,15 @@ void ChatDialog::sendVariantMap(Peer *peer, QVariantMap *msg)
   sendVariantMap(peer->ipAddress, peer->udpPortNumber, msg);
 }
 
+void ChatDialog::rumorMongerAllPeers(QVariantMap *msg)
+{
+  QHash<QString, Peer*>::iterator i;
+  for (i = neighbors->begin(); i != neighbors->end(); i++)
+  {
+    rumorMonger(msg, i.value());
+  }
+}
+
 void ChatDialog::rumorMonger(QVariantMap *msg)
 {
   rumorMonger(msg, getRandomPeer());
@@ -281,7 +290,7 @@ void ChatDialog::routeRumor()
   {
     count++;
   }
-  rumorMonger(msg);
+  rumorMongerAllPeers(msg);
 }
 
 void ChatDialog::antiEntropy()
@@ -289,13 +298,30 @@ void ChatDialog::antiEntropy()
   sendResponse(getRandomPeer());
 }
 
-void ChatDialog::updateRoutingTable(QString origin, QHostAddress sender, quint16 senderPort)
+void ChatDialog::updateRoutingTable(QString origin, QHostAddress sender, quint16 senderPort, quint32 seqNo, bool direct)
 {
-  if (!routingTable->contains(origin) && origin != originName) {
-    qDebug() << "Adding new entry to the routing table" << sender << senderPort;
-    QPair<QHostAddress, quint16> *entry = new QPair<QHostAddress, quint16>(sender, senderPort);
+  qDebug() << "Updating Routing Table";
+  quint32 oldSeqNo = 0;
+  bool updateRoutingFrame = (!routingTable->contains(origin) && origin != originName);
+  if (routingTable->contains(origin))
+  {
+    oldSeqNo = routingTable->value(origin)->second;
+  }
+  if (seqNo < oldSeqNo)
+  {
+    qDebug() << "Old message, not adding to routing table";
+    return;
+  }
+  else if (seqNo > oldSeqNo || (seqNo == oldSeqNo && direct))
+  {
+    qDebug() << "Refreshing the routing table";
+    QPair<QHostAddress, quint16> *route = new QPair<QHostAddress, quint16>(sender, senderPort);
+    QPair<QPair<QHostAddress,quint16>*, quint32> *entry = new QPair<QPair<QHostAddress, quint16>*, quint32>(route, seqNo);
     routingTable->insert(origin, entry);
+  }
 
+  if (updateRoutingFrame) {
+    qDebug() << "Adding new entry to the routing table" << sender << senderPort;
     // Make a layout for the new potential private messages
     PrivateDialog *pcdialog = new PrivateDialog(origin);
     privateChatTable->insert(origin, pcdialog);
@@ -318,18 +344,38 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
 
   if (map.contains("Origin") && map.contains("SeqNo"))
   {
-    updateRoutingTable(map.value("Origin").toString(), sender, senderPort);
+    // Deal with LastIP and LastPort
+    if (mapRef->contains("LastIP") && mapRef->contains("LastPort"))
+    {
+      quint32 lIP = mapRef->value("LastIP").toUInt();
+      quint16 lPort = mapRef->value("LastPort").toUInt();
+      checkAddNeighbor(QHostAddress(lIP), lPort);
+      updateRoutingTable(map.value("Origin").toString(), QHostAddress(lIP), lPort, map.value("SeqNo").toUInt(), true);
+    }
+    else
+    {
+      updateRoutingTable(map.value("Origin").toString(), sender, senderPort, map.value("SeqNo").toUInt(), false);
+    }
+    QVariant lastIP = QVariant(sender.toIPv4Address());
+    QVariant lastPort = QVariant(senderPort);
+    (*mapRef)["LastIP"] = lastIP;
+    (*mapRef)["LastPort"] = lastPort;
+
     bool rcvMsgFlag = receiveMessage(mapRef);
     sendResponse(origin);
     if (rcvMsgFlag)
     {
-      rumorMonger(mapRef);
       if (map.contains("ChatText"))
       {
+        rumorMonger(mapRef);
         QString text = map.value("Origin").toString() + "(" +
                        map.value("SeqNo").toString() + "): " +
                        map.value("ChatText").toString();
         textview->append(text);
+      }
+      else
+      {
+        rumorMongerAllPeers(mapRef);
       }
     }
   }
@@ -440,7 +486,7 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
           if (routingTable->contains(dest))
           {
             qDebug() << address << ": Found this guy in our routing table";
-            QPair<QHostAddress, quint16> *destination = routingTable->value(dest);
+            QPair<QHostAddress, quint16> *destination = routingTable->value(dest)->first;
             sendVariantMap(destination->first, destination->second, &map);
           }
           else

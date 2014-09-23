@@ -8,7 +8,7 @@ PrivateDialog::PrivateDialog(QString dest)
   {
     qDebug() << "WHAT IS HAPPENING TO THE ROUTING TABLE";
   }
-  QPair<QHostAddress, quint16> *p = ChatDialog::dialog->routingTable->value(dest);
+  QPair<QHostAddress, quint16> *p = ChatDialog::dialog->routingTable->value(dest)->first;
   ipaddress = p->first;
   port = p->second;
   destination = dest;
