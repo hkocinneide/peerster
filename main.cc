@@ -49,6 +49,7 @@ int main(int argc, char **argv)
   {
     if (args.at(i) == "-noforward")
     {
+      qDebug () << "Making this a noforward node";
       ChatDialog::dialog->noforward = true;
     }
     else // We have a connection

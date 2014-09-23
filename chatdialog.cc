@@ -167,8 +167,8 @@ bool ChatDialog::receiveMessage(QVariantMap *msg)
   // If the want list is tracking the remote peer, but this isn't the message we want, return
   if (seqNo != wantList->value(originName).toUInt())
   {
-    // qDebug() << address << ": Ew, I don't want this message, I want"
-    //          << wantList->value(originName).toUInt();
+    qDebug() << address << ": Ew, I don't want this message, I want"
+             << wantList->value(originName).toUInt();
     return false;
   }
   else
@@ -176,7 +176,7 @@ bool ChatDialog::receiveMessage(QVariantMap *msg)
     (*wantList)[originName] = QVariant((quint32)seqNo + 1);
   }
 
-  // qDebug() << address << ": I was looking for message #" << seqNo << " and got it!";
+  qDebug() << address << ": I was looking for message #" << seqNo << " and got it!";
 
   // Update message vector
   QList<QVariantMap*> *msgVector;
@@ -236,7 +236,7 @@ void ChatDialog::gotReturnPressed()
   rumorMonger(map);
 
   // Add to window
-  textview->append("Me: " + s);
+  textview->append("Me (" + originName + "): " + s);
 
 	// Clear the textline to get ready for the next input message.
 	textline->clear();
@@ -266,9 +266,12 @@ void ChatDialog::rumorMonger(QVariantMap *msg)
 
 void ChatDialog::rumorMonger(QVariantMap *msg, Peer *peer)
 {
-  sendVariantMap(peer, msg);
-  peer->timer->start(2000);
-  peer->waitMsg = msg;
+  if (!noforward || !msg->contains("ChatText"))
+  {
+    sendVariantMap(peer, msg);
+    peer->timer->start(2000);
+    peer->waitMsg = msg;
+  }
 }
 
 void ChatDialog::routeRumor()
@@ -288,7 +291,7 @@ void ChatDialog::antiEntropy()
 
 void ChatDialog::updateRoutingTable(QString origin, QHostAddress sender, quint16 senderPort)
 {
-  if (!routingTable->contains(origin)) {
+  if (!routingTable->contains(origin) && origin != originName) {
     qDebug() << "Adding new entry to the routing table" << sender << senderPort;
     QPair<QHostAddress, quint16> *entry = new QPair<QHostAddress, quint16>(sender, senderPort);
     routingTable->insert(origin, entry);
@@ -313,99 +316,99 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
   delete stream;
   QVariantMap *mapRef = new QVariantMap(map);
 
-  if (!noforward)
+  if (map.contains("Origin") && map.contains("SeqNo"))
   {
-    if (map.contains("Origin") && map.contains("SeqNo"))
+    updateRoutingTable(map.value("Origin").toString(), sender, senderPort);
+    bool rcvMsgFlag = receiveMessage(mapRef);
+    sendResponse(origin);
+    if (rcvMsgFlag)
     {
-      bool rcvMsgFlag = receiveMessage(mapRef);
-      sendResponse(origin);
-      if (rcvMsgFlag)
+      rumorMonger(mapRef);
+      if (map.contains("ChatText"))
       {
-        updateRoutingTable(map.value("Origin").toString(), sender, senderPort);
-        rumorMonger(mapRef);
-        if (map.contains("ChatText"))
-        {
-          QString text = map.value("Origin").toString() + "(" +
-                         map.value("SeqNo").toString() + "): " +
-                         map.value("ChatText").toString();
-          textview->append(text);
-        }
+        QString text = map.value("Origin").toString() + "(" +
+                       map.value("SeqNo").toString() + "): " +
+                       map.value("ChatText").toString();
+        textview->append(text);
       }
     }
-    else if (map.contains("Want"))
+  }
+  else if (map.contains("Want"))
+  {
+    qDebug() << address << ": Got want from" << origin;
+    if (!neighbors->contains(origin))
     {
-      // qDebug() << address << ": Got want from" << origin;
-      if (!neighbors->contains(origin))
-      {
-        qDebug() << "ERROR Why don't we have this peer? ERROR";
-      }
-      Peer *peer = neighbors->value(origin);
-      peer->timer->stop();
+      qDebug() << "ERROR Why don't we have this peer? ERROR";
+    }
+    Peer *peer = neighbors->value(origin);
+    peer->timer->stop();
 
-      QVariantMap collection;
-      QVariantMap wantItem = map.value("Want").toMap();
-      QVariantMap::iterator i;
-      for (i = wantList->begin(); i != wantList->end(); i++)
+    QVariantMap collection;
+    QVariantMap wantItem = map.value("Want").toMap();
+    QVariantMap::iterator i;
+    for (i = wantList->begin(); i != wantList->end(); i++)
+    {
+      if (wantItem.contains(i.key()))
       {
-        if (wantItem.contains(i.key()))
+        quint32 theyWant = wantItem.value(i.key()).toUInt();
+        if (theyWant < i.value().toUInt())
         {
-          quint32 theyWant = wantItem.value(i.key()).toUInt();
-          if (theyWant < i.value().toUInt())
-          {
-            // qDebug() << address << ":" << origin << "doesn't have the latest gossip!";
-            if (seenMessages->contains(i.key()))
-            {
-              rumorMonger(seenMessages->value(i.key())->at(theyWant - 1), peer);
-            }
-            else
-            {
-              qDebug() << "Our seenMessages doesn't have" << i.key();
-            }
-            return;
-          }
-        }
-        else
-        {
-          qDebug() << address << ":" << origin << "didn't even know this guy existed!";
+           qDebug() << address << ":" << origin << "doesn't have the latest gossip!";
           if (seenMessages->contains(i.key()))
           {
-            rumorMonger(seenMessages->value(i.key())->at(0), peer);
+            rumorMonger(seenMessages->value(i.key())->at(theyWant - 1), peer);
           }
           else
           {
-            qDebug() << "They haven't seen this guy but we don't have him in our seenMessages";
+            qDebug() << "Our seenMessages doesn't have" << i.key();
           }
           return;
         }
       }
-      for (i = wantItem.begin(); i != wantItem.end(); i++)
+      else
       {
-        if (wantList->contains(i.key()))
+        qDebug() << address << ":" << origin << "didn't even know this guy existed!";
+        if (seenMessages->contains(i.key()))
         {
-          quint32 weWant = wantList->value(i.key()).toUInt();
-          if (weWant < i.value().toUInt())
-          {
-            // qDebug() << address << ":" << origin << "is giving us new info!";
-            sendResponse(origin);
-            return;
-          }
+          rumorMonger(seenMessages->value(i.key())->at(0), peer);
         }
         else
         {
-          // qDebug() << address << ":" << origin << "knows somebody we dont :(";
+          qDebug() << "They haven't seen this guy but we don't have him in our seenMessages";
+        }
+        return;
+      }
+    }
+    for (i = wantItem.begin(); i != wantItem.end(); i++)
+    {
+      if (wantList->contains(i.key()))
+      {
+        quint32 weWant = wantList->value(i.key()).toUInt();
+        if (weWant < i.value().toUInt())
+        {
+          qDebug() << address << ":" << origin << "is giving us new info!";
           sendResponse(origin);
           return;
         }
       }
-      // If we're here that means that the two lists are equal
-      // qDebug() << address << ":" << origin << "and I have the same info now";
-      if (qrand() % 2 == 0)
+      else
       {
-        sendResponse(getRandomPeer());
+        qDebug() << address << ":" << origin << "knows somebody we dont :(";
+        sendResponse(origin);
+        return;
       }
     }
-    else if (map.contains("Dest") && map.contains("Origin")
-          && map.contains("ChatText") && map.contains("HopLimit"))
+    // If we're here that means that the two lists are equal
+    qDebug() << address << ":" << origin << "and I have the same info now";
+    if (qrand() % 2 == 0)
+    {
+      sendResponse(getRandomPeer());
+    }
+  }
+  else if (map.contains("Dest") && map.contains("Origin")
+        && map.contains("ChatText") && map.contains("HopLimit"))
+  {
+    if (!noforward)
     {
       qDebug() << address << ": Got a private message";
       QString dest = map.value("Dest").toString();
@@ -416,7 +419,7 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
         if (privateChatTable->contains(org))
         {
           PrivateDialog *pcdialog = privateChatTable->value(org);
-          pcdialog->showMessage(dest + ": " + map.value("ChatText").toString());
+          pcdialog->showMessage(org + ": " + map.value("ChatText").toString());
         }
         else
         {
@@ -452,11 +455,6 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
       }
     }
   }
-  // Forward these messages, drop everything else
-  else if (map.contains("Origin") && map.contains("SeqNo") && !map.contains("ChatText"))
-  {
-    rumorMonger(mapRef);
-  }
 }
 
 void ChatDialog::sendResponse(QString origin)
@@ -470,8 +468,8 @@ void ChatDialog::sendResponse(QString origin)
 
 void ChatDialog::sendResponse(Peer *peer)
 {
-  // qDebug() << "Sending want from" << address << "to"
-  //          << stringifyHostPort(peer->ipAddress, peer->udpPortNumber);
+  qDebug() << "Sending want from" << address << "to"
+           << stringifyHostPort(peer->ipAddress, peer->udpPortNumber);
   QVariantMap map;
   map.insert("Want", QVariant(*wantList));
   sendVariantMap(peer, &map);
@@ -488,7 +486,7 @@ QString ChatDialog::checkAddNeighbor(QHostAddress sender, quint16 senderPort)
   }
   else
   {
-    // qDebug() << address << ": OH! A Challenger appears!";
+    qDebug() << address << ": OH! A Challenger appears!";
     remotePeer = new Peer(sender, senderPort);
     (*neighbors)[text] = remotePeer;
   }
