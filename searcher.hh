@@ -20,6 +20,7 @@ public:
 public slots:
   void searchTermsEntered();
   void searchTimeout();
+  void fileActivated(QListWidgetItem *);
 
 private:
   QTimer *searchTimer;
@@ -28,7 +29,8 @@ private:
   TextEntryBox *searchBox;
   QListWidget *searchList;
   QStringList *currentSearchTerms;
+  QHash<QString, QPair<QString,QByteArray*>*> *fileNameList;
 
   void searchResponse(QString, QString, QList<SharedFile*>);
-  void addToList(QString, QByteArray);
+  void addToList(QString, QByteArray, QString);
 };

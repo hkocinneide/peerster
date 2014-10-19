@@ -12,10 +12,25 @@ Searcher::Searcher(ChatDialog *dialog, TextEntryBox *searchBox, QListWidget *sea
   this->searchList = searchList;
 
   searchTimer = new QTimer();
+  fileNameList = new QHash<QString, QPair<QString,QByteArray*>*>();
   connect(searchBox, SIGNAL(returnPressed()),
           this, SLOT(searchTermsEntered()));
   connect(searchTimer, SIGNAL(timeout()),
           this, SLOT(searchTimeout()));
+  connect(searchList, SIGNAL(itemActivated(QListWidgetItem *)),
+          this, SLOT(fileActivated(QListWidgetItem *)));
+}
+
+void Searcher::fileActivated(QListWidgetItem *item)
+{
+  if (fileNameList->contains(item->text()))
+  {
+    dialog->fileshare->waitingOnBlockList = true;
+    QPair<QString,QByteArray*> *entry = fileNameList->value(item->text());
+    QString node = entry->first;
+    QByteArray *id = entry->second;
+    dialog->fileshare->requestBlock(node, *id);
+  }
 }
 
 void Searcher::searchTermsEntered()
@@ -24,6 +39,8 @@ void Searcher::searchTermsEntered()
   qDebug() << "Search terms entered:" << rawTerms;
   searchBox->clear();
   searchList->clear();
+  delete fileNameList;
+  fileNameList = new QHash<QString,QPair<QString,QByteArray*>*>();
   currentSearchTerms = new QStringList(rawTerms.split(" ", QString::SkipEmptyParts));
   for (int i = 0; i < currentSearchTerms->length(); i++)
   {
@@ -107,8 +124,14 @@ void Searcher::searchResponse(QString dest, QString term, QList<SharedFile *> sf
   }
 }
 
-void Searcher::addToList(QString name, QByteArray hash)
+void Searcher::addToList(QString name, QByteArray hash, QString org)
 {
+  if (!fileNameList->contains(name))
+  {
+    QPair<QString, QByteArray*> *entry = new QPair<QString, QByteArray*>(org, new QByteArray(hash));
+    fileNameList->insert(name, entry);
+    new QListWidgetItem(name, searchList);
+  }
 }
 
 void Searcher::searchResult(QVariantMap msg)
@@ -122,7 +145,7 @@ void Searcher::searchResult(QVariantMap msg)
   {
     for (int i = 0; i < nids; i++)
     {
-      addToList(matchNames[i].toString(), matchIDs[i].toByteArray());
+      addToList(matchNames[i].toString(), matchIDs[i].toByteArray(), msg.value("Origin").toString());
     }
   }
   else
