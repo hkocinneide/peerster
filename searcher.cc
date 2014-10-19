@@ -26,6 +26,7 @@ void Searcher::fileActivated(QListWidgetItem *item)
   if (fileNameList->contains(item->text()))
   {
     dialog->fileshare->waitingOnBlockList = true;
+    dialog->fileshare->waitingOnFileName = item->text();
     QPair<QString,QByteArray*> *entry = fileNameList->value(item->text());
     QString node = entry->first;
     QByteArray *id = entry->second;

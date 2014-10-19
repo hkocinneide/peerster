@@ -25,6 +25,7 @@ public:
   bool waitingOnBlockList;
   QByteArray *blockWaitingOn;
   bool constructingFile;
+  QString waitingOnFileName;
 
   FileShare(ChatDialog *dialog);
   void requestButtonPressed(QString node, QString hash);

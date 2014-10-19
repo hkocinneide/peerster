@@ -118,13 +118,15 @@ void FileShare::receiveBlockList(QString from, QByteArray fileblocklist)
 
 void FileShare::writeConstructingFileToDisk()
 {
+  QStringList sl = waitingOnFileName.split("/");
+  QString fn = sl.last();
   qDebug() << "Creating file";
   if (!QDir("downloads").exists())
   {
     qDebug() << "Making downloads folder";
     QDir().mkdir("downloads");
   }
-  QFile file("downloads/received.txt");
+  QFile file("downloads/" + fn);
   if (!file.open(QIODevice::WriteOnly))
   {
     qDebug() << "Could not open the file";
