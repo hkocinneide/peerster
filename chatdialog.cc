@@ -5,6 +5,8 @@
 #include "textentrybox.hh"
 #include "netsocket.hh"
 #include "privatedialog.hh"
+#include "fileshare.hh"
+#include "searcher.hh"
 
 ChatDialog::ChatDialog()
 {
@@ -43,6 +45,32 @@ ChatDialog::ChatDialog()
 
   peerlist = new QListWidget(this);
 
+  // Instantiate fileshare
+  fileshare = new FileShare(this);
+
+  // Make button for sharing files
+  QPushButton *fileShareButton = new QPushButton("Share File", this);
+  fileShareButton->setMaximumHeight(35);
+
+  // Make fields for sharing files
+  blockRequestNode = new TextEntryBox(this);
+  blockRequestNode->setMaximumHeight(35);
+  blockRequestHash = new TextEntryBox(this);
+  blockRequestHash->setMaximumHeight(35);
+  blockRequestButton = new QPushButton("Request File", this);
+
+  // Search logic
+  QGroupBox *searchBoxOutline = new QGroupBox(tr("Search for files"));
+  searchBox = new TextEntryBox();
+  searchBox->setMaximumHeight(35);
+  QVBoxLayout *m = new QVBoxLayout();
+  m->addWidget(searchBox);
+  searchBoxOutline->setLayout(m);
+
+  searchList = new QListWidget(this);
+
+  searcher = new Searcher(this, searchBox, searchList);
+
 	// Lay out the widgets to appear in the main window.
 	// For Qt widget and layout concepts see:
 	// http://doc.qt.nokia.com/4.7-snapshot/widgets-and-layouts.html
@@ -50,7 +78,13 @@ ChatDialog::ChatDialog()
 	layout->addWidget(textview, 0, 0);
 	layout->addWidget(textline, 1, 0);
   layout->addWidget(groupBox, 2, 0);
-  layout->addWidget(peerlist, 0, 1, 3, 1);
+  layout->addWidget(peerlist, 0, 1, 2, 1);
+  layout->addWidget(fileShareButton, 2, 1);
+  layout->addWidget(blockRequestNode, 0, 3);
+  layout->addWidget(blockRequestHash, 1, 3);
+  layout->addWidget(blockRequestButton, 2, 3);
+  layout->addWidget(searchList, 0, 4, 2, 1);
+  layout->addWidget(searchBoxOutline, 2, 4);
 	setLayout(layout);
 
   // Initialize our origin name
@@ -84,6 +118,19 @@ ChatDialog::ChatDialog()
           this, SLOT(gotReadyRead()));
   connect(peerlist, SIGNAL(itemActivated(QListWidgetItem *)),
           this, SLOT(peerActivated(QListWidgetItem *)));
+  connect(fileShareButton, SIGNAL(clicked()),
+          fileshare, SLOT(buttonPressed()));
+  connect(blockRequestButton, SIGNAL(clicked()),
+          this, SLOT(requestButtonPressed()));
+}
+
+void ChatDialog::requestButtonPressed()
+{
+  QString node = blockRequestNode->toPlainText();
+  QString hash = blockRequestHash->toPlainText();
+  blockRequestNode->clear();
+  blockRequestHash->clear();
+  fileshare->requestButtonPressed(node, hash);
 }
 
 void ChatDialog::gotNewConnection()
@@ -331,7 +378,6 @@ void ChatDialog::updateRoutingTable(QString origin, QHostAddress sender, quint16
   }
 }
 
-
 void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint16 senderPort)
 {
   QString origin = checkAddNeighbor(sender, senderPort);
@@ -452,7 +498,7 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
     }
   }
   else if (map.contains("Dest") && map.contains("Origin")
-        && map.contains("ChatText") && map.contains("HopLimit"))
+        && map.contains("HopLimit"))
   {
     if (!noforward)
     {
@@ -464,8 +510,44 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
       {
         if (privateChatTable->contains(org))
         {
-          PrivateDialog *pcdialog = privateChatTable->value(org);
-          pcdialog->showMessage(org + ": " + map.value("ChatText").toString());
+          if (map.contains("ChatText"))
+          {
+            PrivateDialog *pcdialog = privateChatTable->value(org);
+            pcdialog->showMessage(org + ": " + map.value("ChatText").toString());
+          }
+          else if (map.contains("BlockRequest"))
+          {
+            fileshare->blockReply(org, map.value("BlockRequest").toByteArray());
+          }
+          else if (map.contains("BlockReply") && map.contains("Data"))
+          {
+            QByteArray receivedHash = map.value("BlockReply").toByteArray();
+            QByteArray checkHash(QCryptographicHash::hash(map.value("Data").toByteArray(), QCryptographicHash::Sha1));
+            if (checkHash != receivedHash)
+            {
+              qDebug() << "Not the right block";
+            }
+            if (receivedHash != *fileshare->blockWaitingOn)
+            {
+              qDebug() << "Not the one we're looking for";
+            }
+            if (fileshare->waitingOnBlockList)
+            {
+              fileshare->receiveBlockList(org, map.value("Data").toByteArray());
+            }
+            else
+            {
+              fileshare->receiveBlock(org, map.value("Data").toByteArray());
+            }
+          }
+          else if (map.contains("SearchReply") && map.contains("MatchNames") && map.contains("MatchIDs"))
+          {
+            searcher->searchResult(map);
+          }
+        }
+        else if (org == originName)
+        {
+          qDebug() << "Getting message from ourselves!";
         }
         else
         {
@@ -500,6 +582,10 @@ void ChatDialog::processDatagram(QByteArray datagram, QHostAddress sender, quint
         }
       }
     }
+  }
+  else if (map.contains("Origin") && map.contains("Search") && map.contains("Budget"))
+  {
+    searcher->receiveSearch(map);
   }
 }
 

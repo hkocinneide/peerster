@@ -10,5 +10,5 @@ QT += network
 QMAKE_CXXFLAGS += -g
 
 # Input
-HEADERS += main.hh peer.hh qinclude.hh chatdialog.hh netsocket.hh textentrybox.hh privatedialog.hh
-SOURCES += main.cc peer.cc netsocket.cc textentrybox.cc chatdialog.cc privatedialog.cc
+HEADERS += main.hh peer.hh qinclude.hh chatdialog.hh netsocket.hh textentrybox.hh privatedialog.hh fileshare.hh searcher.hh
+SOURCES += main.cc peer.cc netsocket.cc textentrybox.cc chatdialog.cc privatedialog.cc fileshare.cc searcher.cc

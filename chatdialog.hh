@@ -4,6 +4,8 @@ class PrivateDialog;
 class Peer;
 class TextEntryBox;
 class NetSocket;
+class FileShare;
+class Searcher;
 
 extern NetSocket sock;
 
@@ -25,6 +27,8 @@ public:
   void rumorMonger(QVariantMap*);
   void sendVariantMap(QHostAddress, quint16, QVariantMap *);
   void sendVariantMap(Peer*, QVariantMap*);
+  Peer *getRandomPeer();
+  FileShare *fileshare;
 
 public slots:
 	void gotReturnPressed();
@@ -33,22 +37,28 @@ public slots:
   void routeRumor();
   void gotNewConnection();
   void peerActivated(QListWidgetItem *item);
+  void requestButtonPressed();
 
 private:
 	QTextEdit *textview;
   QListWidget *peerlist;
+  QListWidget *searchList;
   QDialog *privatechat;
 	TextEntryBox *textline;
   TextEntryBox *newConnection;
+  TextEntryBox *blockRequestNode;
+  TextEntryBox *blockRequestHash;
+  TextEntryBox *searchBox;
+  QPushButton *blockRequestButton;
   qint32 randNum;
   quint32 count;
   QHash<QString, QList<QVariantMap*>*> *seenMessages;
   QDialog *activeDialog;
   QVariantMap *wantList;
+  Searcher *searcher;
   QTimer *antiEntropyTimer;
   QTimer *routingTimer;
 
-  Peer *getRandomPeer();
   void processDatagram(QByteArray datagram, QHostAddress sender, quint16 senderPort);
   QString checkAddNeighbor(QHostAddress,quint16);
   void rumorMonger(QVariantMap*, Peer*);

@@ -11,5 +11,8 @@
 #include <QTimer>
 #include <QGroupBox>
 #include <QListWidget>
+#include <QPushButton>
+#include <QFileDialog>
+#include <QCryptographicHash>
 
 QString stringifyHostPort(QHostAddress, quint16);
