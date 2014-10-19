@@ -103,12 +103,12 @@ void Searcher::searchResponse(QString dest, QString term, QList<SharedFile *> sf
     quint16 port = address->second;
 
     QVariantList matchNames;
-    QVariantList matchIDs;
+    QByteArray matchIDs;
     for (int i = 0; i < sflist.size(); i++)
     {
       SharedFile *sf = sflist[i];
       matchNames.append(QVariant(sf->filename));
-      matchIDs.append(QVariant(*sf->metahash));
+      matchIDs.append(*sf->metahash);
     }
 
     response.insert("Dest", QVariant(dest));
@@ -138,15 +138,34 @@ void Searcher::addToList(QString name, QByteArray hash, QString org)
 void Searcher::searchResult(QVariantMap msg)
 {
   QVariantList matchNames = msg.value("MatchNames").toList();
-  QVariantList matchIDs = msg.value("MatchIDs").toList();
+  QByteArray matchIDs = msg.value("MatchIDs").toByteArray();
+  QList<QByteArray> matchIDList;
+  int size = matchIDs.size();
+
+  if (size % 20 == 0)
+  {
+    int pos = 0;
+    while (pos < size)
+    {
+      QByteArray a = matchIDs.mid(pos, 20);
+      matchIDList.append(a);
+      pos += 20;
+    }
+  }
+  else
+  {
+    qDebug() << "Oh no this isn't right this isn't right this isn't right";
+    return;
+  }
+
 
   int nnames = matchNames.size();
-  int nids   = matchIDs.size();
+  int nids   = matchIDList.size();
   if (nids == nnames)
   {
     for (int i = 0; i < nids; i++)
     {
-      addToList(matchNames[i].toString(), matchIDs[i].toByteArray(), msg.value("Origin").toString());
+      addToList(matchNames[i].toString(), matchIDList[i], msg.value("Origin").toString());
     }
   }
   else

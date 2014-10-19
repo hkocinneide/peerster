@@ -46,10 +46,10 @@ private:
   QDialog *privatechat;
 	TextEntryBox *textline;
   TextEntryBox *newConnection;
-  TextEntryBox *blockRequestNode;
-  TextEntryBox *blockRequestHash;
+  // TextEntryBox *blockRequestNode;
+  // TextEntryBox *blockRequestHash;
   TextEntryBox *searchBox;
-  QPushButton *blockRequestButton;
+  // QPushButton *blockRequestButton;
   qint32 randNum;
   quint32 count;
   QHash<QString, QList<QVariantMap*>*> *seenMessages;

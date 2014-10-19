@@ -118,6 +118,7 @@ void FileShare::receiveBlockList(QString from, QByteArray fileblocklist)
 
 void FileShare::writeConstructingFileToDisk()
 {
+  constructingFile = false;
   QStringList sl = waitingOnFileName.split("/");
   QString fn = sl.last();
   qDebug() << "Creating file";

@@ -53,11 +53,11 @@ ChatDialog::ChatDialog()
   fileShareButton->setMaximumHeight(35);
 
   // Make fields for sharing files
-  blockRequestNode = new TextEntryBox(this);
-  blockRequestNode->setMaximumHeight(35);
-  blockRequestHash = new TextEntryBox(this);
-  blockRequestHash->setMaximumHeight(35);
-  blockRequestButton = new QPushButton("Request File", this);
+  // blockRequestNode = new TextEntryBox(this);
+  // blockRequestNode->setMaximumHeight(35);
+  // blockRequestHash = new TextEntryBox(this);
+  // blockRequestHash->setMaximumHeight(35);
+  // blockRequestButton = new QPushButton("Request File", this);
 
   // Search logic
   QGroupBox *searchBoxOutline = new QGroupBox(tr("Search for files"));
@@ -80,11 +80,11 @@ ChatDialog::ChatDialog()
   layout->addWidget(groupBox, 2, 0);
   layout->addWidget(peerlist, 0, 1, 2, 1);
   layout->addWidget(fileShareButton, 2, 1);
-  layout->addWidget(blockRequestNode, 0, 3);
-  layout->addWidget(blockRequestHash, 1, 3);
-  layout->addWidget(blockRequestButton, 2, 3);
-  layout->addWidget(searchList, 0, 4, 2, 1);
-  layout->addWidget(searchBoxOutline, 2, 4);
+  // layout->addWidget(blockRequestNode, 0, 3);
+  // layout->addWidget(blockRequestHash, 1, 3);
+  // layout->addWidget(blockRequestButton, 2, 3);
+  layout->addWidget(searchList, 0, 3, 2, 1);
+  layout->addWidget(searchBoxOutline, 2, 3);
 	setLayout(layout);
 
   // Initialize our origin name
@@ -120,17 +120,17 @@ ChatDialog::ChatDialog()
           this, SLOT(peerActivated(QListWidgetItem *)));
   connect(fileShareButton, SIGNAL(clicked()),
           fileshare, SLOT(buttonPressed()));
-  connect(blockRequestButton, SIGNAL(clicked()),
-          this, SLOT(requestButtonPressed()));
+  // connect(blockRequestButton, SIGNAL(clicked()),
+  //         this, SLOT(requestButtonPressed()));
 }
 
 void ChatDialog::requestButtonPressed()
 {
-  QString node = blockRequestNode->toPlainText();
-  QString hash = blockRequestHash->toPlainText();
-  blockRequestNode->clear();
-  blockRequestHash->clear();
-  fileshare->requestButtonPressed(node, hash);
+  // QString node = blockRequestNode->toPlainText();
+  // QString hash = blockRequestHash->toPlainText();
+  // blockRequestNode->clear();
+  // blockRequestHash->clear();
+  // fileshare->requestButtonPressed(node, hash);
 }
 
 void ChatDialog::gotNewConnection()
