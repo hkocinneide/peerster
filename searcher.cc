@@ -81,6 +81,7 @@ void Searcher::receiveSearch(QVariantMap msg)
   {
     QList<SharedFile*> *sflist = dialog->fileshare->sharedFiles;
     QList<SharedFile*> matchlist;
+    budget--;
     for (int i = 0; i < sflist->size(); i++)
     {
       SharedFile *sf = (*sflist)[i];
@@ -91,11 +92,16 @@ void Searcher::receiveSearch(QVariantMap msg)
       }
     }
     searchResponse(org, searchTerm, matchlist);
+    distributeWithBudget(msg, budget);
   }
 }
 
 void Searcher::searchResponse(QString dest, QString term, QList<SharedFile *> sflist)
 {
+  if (sflist.count() == 0)
+  {
+    return;
+  }
   QVariantMap response;
   if (dialog->routingTable->contains(dest))
   {
