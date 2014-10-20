@@ -49,13 +49,14 @@ void Searcher::searchTermsEntered()
   }
   searchTimer->start(1000);
   currentBudget = 1;
+  nSearchResults = 0;
   searchTimeout();
 }
 
 void Searcher::searchTimeout()
 {
   currentBudget *= 2;
-  if (currentBudget <= MAXBUDGET)
+  if (currentBudget <= MAXBUDGET && nSearchResults <= MAXRESULTS)
   {
     for(int i = 0; i < currentSearchTerms->size(); i++)
     {
@@ -165,6 +166,7 @@ void Searcher::searchResult(QVariantMap msg)
   {
     for (int i = 0; i < nids; i++)
     {
+      nSearchResults++;
       addToList(matchNames[i].toString(), matchIDList[i], msg.value("Origin").toString());
     }
   }

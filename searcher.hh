@@ -1,6 +1,7 @@
 #include "qinclude.hh"
 
 #define MAXBUDGET 100
+#define MAXRESULTS 10
 #define STARTBUDGET 2
 
 class ChatDialog;
@@ -30,6 +31,7 @@ private:
   QListWidget *searchList;
   QStringList *currentSearchTerms;
   QHash<QString, QPair<QString,QByteArray*>*> *fileNameList;
+  int nSearchResults;
 
   void searchResponse(QString, QString, QList<SharedFile*>);
   void addToList(QString, QByteArray, QString);
