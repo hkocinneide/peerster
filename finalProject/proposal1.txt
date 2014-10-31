@@ -1,0 +1,25 @@
+For my final project, I would like to do an implementation of the Chord protocol
+that we read and learned about in class. I think it is at once an interesting
+and useful system, and an easy-to-scope project due to all the extensions we
+talked about in class.
+
+The basic functionality is a distributed hash table that stores items in the
+SHA256 "pie" we talked about in class. In this mode, it will have to be able to
+detect nodes coming and going, be able to add and fetch things from the hash
+table. It should also implement Merkle Trees to ensure that storage can be
+arbitrarily large.
+
+If that turns out to be easier than expected, I can extend it further to
+customize the amount of space a node wants to share with the hash table, and
+give it the corresponding number of nodes on the hash table to scale with that
+number.
+
+If that gets done, I can then focus on Sybil Attacks and how to prevent an
+attacker from easily bringing down the system or causing data to be lost. This
+is a pretty complicated requirement but after listening to the lectures and
+reading the paper, I do think that I could implement it.
+
+There are plenty of other extension points to the basic DHT functionality, and
+these are only a couple. As I think and code more on the project, I can
+continuously scope it so that it is not a trivial DHT implementation, but it is
+also not a problematically large project.
