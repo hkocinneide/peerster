@@ -105,17 +105,22 @@ void Searcher::searchResponse(QString dest, QString term, QList<SharedFile *> sf
   QVariantMap response;
   if (dialog->routingTable->contains(dest))
   {
+    qDebug() << "Sending searchResponse...";
     QPair<QHostAddress,quint16> *address = dialog->routingTable->value(dest)->first;
     QHostAddress ip = address->first;
     quint16 port = address->second;
 
     QVariantList matchNames;
-    QByteArray matchIDs;
+
+    // New Code - matchIDs is a QVariantList
+    QVariantList matchIDs;
+    // QByteArray matchIDs;
     for (int i = 0; i < sflist.size(); i++)
     {
       SharedFile *sf = sflist[i];
       matchNames.append(QVariant(sf->filename));
-      matchIDs.append(*sf->metahash);
+      matchIDs.append(QVariant(*sf->metahash));
+      // matchIDs.append(*sf->metahash);
     }
 
     response.insert("Dest", QVariant(dest));
@@ -145,6 +150,12 @@ void Searcher::addToList(QString name, QByteArray hash, QString org)
 void Searcher::searchResult(QVariantMap msg)
 {
   QVariantList matchNames = msg.value("MatchNames").toList();
+  // New code, making a QList of QByteArrays
+  QVariantList matchIDList = msg.value("MatchIDs").toList();
+  qDebug() << "Got a searchResult, size:" << matchIDList.size();
+
+  // Old code, made a long QByteArray instead of a QList
+  /*
   QByteArray matchIDs = msg.value("MatchIDs").toByteArray();
   QList<QByteArray> matchIDList;
   int size = matchIDs.size();
@@ -164,6 +175,7 @@ void Searcher::searchResult(QVariantMap msg)
     qDebug() << "Oh no this isn't right this isn't right this isn't right";
     return;
   }
+  */
 
 
   int nnames = matchNames.size();
@@ -173,7 +185,7 @@ void Searcher::searchResult(QVariantMap msg)
     for (int i = 0; i < nids; i++)
     {
       nSearchResults++;
-      addToList(matchNames[i].toString(), matchIDList[i], msg.value("Origin").toString());
+      addToList(matchNames[i].toString(), matchIDList[i].toByteArray(), msg.value("Origin").toString());
     }
   }
   else
@@ -200,7 +212,7 @@ void Searcher::distributeWithBudget(QVariantMap msg, quint32 budget)
     if (b != 0)
     {
       msg.insert("Budget", b);
-      qDebug() << "Sending to:" << stringifyHostPort(i.value()->ipAddress, i.value()->udpPortNumber) << "with budget:" << b;
+      // qDebug() << "Sending to:" << stringifyHostPort(i.value()->ipAddress, i.value()->udpPortNumber) << "with budget:" << b;
       dialog->sendVariantMap(i.value(), &msg);
     }
   }

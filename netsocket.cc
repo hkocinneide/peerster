@@ -2,6 +2,9 @@
 
 #include "netsocket.hh"
 
+// If we're in the Zoo, make sure we respect other peoples' ports
+#define ZOO true
+
 NetSocket::NetSocket()
 {
 	// Pick a range of four UDP ports to try to allocate by default,
@@ -11,8 +14,16 @@ NetSocket::NetSocket()
 	// barring UDP port conflicts with other applications
 	// (which are quite possible).
 	// We use the range from 32768 to 49151 for this purpose.
-	myPortMin = 32768 + (getuid() % 4096)*4;
-	myPortMax = myPortMin + 3;
+  if (ZOO)
+  {
+    myPortMin = 32768 + (getuid() % 4096)*4;
+    myPortMax = myPortMin + 3;
+  }
+  else
+  {
+    myPortMin = 32768;
+    myPortMax = myPortMin + 32;
+  }
   currentPort = -1;
 }
 
